@@ -4,7 +4,11 @@ import json
 import os
 
 from docutils import nodes
-from sphinx.theming import Theme
+import sphinx
+if sphinx.__version__ < '1.6.0':
+    from sphinx.theming import Theme
+else:
+    from sphinx.theming import Theme, HTMLThemeFactory
 from sphinx.builders.html import (
     SingleFileHTMLBuilder,
     StandaloneHTMLBuilder,
@@ -48,18 +52,29 @@ class AbstractSlideBuilder(object):
         return self.theme.get_options(overrides)
 
     def init_templates(self):
-        Theme.init_themes(self.confdir,
-                          self.get_builtin_theme_dirs() +
-                          self.config.slide_theme_path,
-                          warn=self.warn)
-        themename, themeoptions = self.get_theme_config()
+        if sphinx.__version__ < '1.6.0':
+            Theme.init_themes(self.confdir,
+                    self.get_builtin_theme_dirs() + self.config.slide_theme_path,
+                    warn=self.warn)
+            themename, themeoptions = self.get_theme_config()
+            self.create_template_bridge()
+            self._theme_stack = []
+            self._additional_themes = []
 
-        self.create_template_bridge()
-        self._theme_stack = []
-        self._additional_themes = []
+            self.theme = self.theme_options = None
+            self.apply_theme(themename, themeoptions)
+        else:
+            temptheme = Theme(self.confdir,
+                            self.get_builtin_theme_dirs() + self.config.slide_theme_path,
+                            HTMLThemeFactory)
+            themename, themeoptions = temptheme.get_config()
 
-        self.theme = self.theme_options = None
-        self.apply_theme(themename, themeoptions)
+            self.create_template_bridge()
+            self._theme_stack = []
+            self._additional_themes = []
+
+            self.theme = temptheme.get_options
+            self.apply_theme(themename, themeoptions)
 
     def apply_theme(self, themename, themeoptions):
         """Apply a new theme to the document.
